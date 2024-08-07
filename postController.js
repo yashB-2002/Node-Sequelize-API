@@ -7,10 +7,12 @@ const createPost = async (req,res) => {
 
     const {caption,UserId} = req.body
 
-    const imgPath = `${process.env.BASE_URL}${req.file.path.replace(/\\/g, '/')}`
-    const post = await Post.create({caption,image:imgPath,UserId})
+    const imgPath1 = `${process.env.BASE_URL}${req.file.path.replace(/\\/g, '/')}`
+    const imgPath2 = `${req.file.path.replace(/\\/g, '/')}`
+    
+    const post = await Post.create({caption,image:imgPath2,UserId})
 
-    return res.status(201).json({success:true,data:post})
+    return res.status(201).json({success:true,data:{caption,image:imgPath1}})
 }
 
 const updatePost = async (req,res) => {
@@ -26,16 +28,13 @@ const updatePost = async (req,res) => {
         })
     }
 
-    fs.unlink(post.image.replace(process.env.BASE_URL, ''), (err) => {
-        if (err) {
-            console.error('Error deleting privous image.', err);
-        }
-    });
-
     const newImgPath = `${process.env.BASE_URL}${req.file.path.replace(/\\/g, '/')}`
-    post.image = newImgPath
+    const prevImgPath = `${process.env.BASE_URL}${post.image}`
+    if(newImgPath !== prevImgPath) {
+        post.image = newImgPath
+        fs.unlinkSync(post.image.replace(process.env.BASE_URL, ''));
+    }
     post.caption = caption
-
     await post.save()
 
     return res.status(200).json({

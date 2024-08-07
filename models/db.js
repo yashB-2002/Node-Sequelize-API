@@ -8,11 +8,13 @@ const User = require('./user');
 User.hasMany(Post,{
     foreignKey:{
         type:DataTypes.INTEGER,
-        allowNull:false
+        allowNull:false,
     }
 })
 
-Post.belongsTo(User)
+Post.belongsTo(User,{
+    foreignKey: 'UserId',
+})
 
 
 sequelize.sync().then(()=>{
