@@ -1,18 +1,22 @@
 const { Op, Sequelize } = require('sequelize');
-const User  = require('./models/user' );
+const User = require('./models/user');
 const { validateUser } = require('./utils/validator');
 const Post = require('./models/post');
+const client = require('./redis/client')
 
+client.on('connect', () => {
+  console.log('redis connected.');
 
+})
 // Get all users
 
 
 // exports.getAllUsers = async (req, res) => {
 //   try {
-    
+
 
 //     let {sortBy='', search='',p=1,perPage=1} = req.query
-    
+
 //     let options = {}
 
 //     options.limit = perPage;
@@ -46,7 +50,7 @@ const Post = require('./models/post');
 //       message: 'Users fetched successfully',
 //       totalCount: users.length,
 //       data: users
-      
+
 //     });
 //   } catch (err) {
 //     res.status(404).json({
@@ -60,10 +64,10 @@ const Post = require('./models/post');
 // exports.getAllUsers = async (req, res) => {
 //   try {
 //     let { sortBy = '', search = '', p = 1, perPage = 5 } = req.query;
- 
+
 //     p = parseInt(p, 10);
 //     perPage = parseInt(perPage, 10);
- 
+
 //     const allUsers = await User.findAll();
 
 //     // [count,rows] = User.findAndCountAll({where , order, limit , offset})
@@ -80,34 +84,34 @@ const Post = require('./models/post');
 //         user.email.toLowerCase().includes(searchLower)
 //       );
 //     }
- 
+
 //     //  sorting
 //     if (sortBy) {
 //       let ordersForSorting = sortBy.split(',').map(option => {
 //         const [key, value] = option.split(':');
 //         return { key: key.trim(), order: value.trim().toLowerCase() };
 //       });
- 
+
 //       paginatedUsers.sort((a, b) => {
 //         for (let { key, order } of ordersForSorting) {
 //           let aV = a[key];
 //           let bV = b[key];
- 
+
 //           if (typeof aV === 'string') aV = aV.toLowerCase();
 //           if (typeof bV === 'string') bV = bV.toLowerCase();
- 
+
 //           if (aV < bV) return order === 'asc' ? -1 : 1;
 //           if (aV > bV) return order === 'asc' ? 1 : -1;
 //         }
 //         return 0;
 //       });
 //     }
-    
+
 //     // console.log("filtered user",filteredUsers)
 //     // pagination
 //     const totalCount = paginatedUsers.length;
 //     // const paginatedUsers = filteredUsers.slice((p - 1) * perPage, p * perPage);
- 
+
 //     res.status(200).json({
 //       success: true,
 //       message: 'Users fetched successfully',
@@ -124,135 +128,138 @@ const Post = require('./models/post');
 // };
 
 exports.getAllUsers = async (req, res) => {
+  // let { sortBy = '', search = '', p = 1, perPage = 5, creator = '0' } = req.query;
+
+  // p = parseInt(p, 10);
+  // perPage = parseInt(perPage, 10);
+
+  // const options = {
+  //   limit: perPage,
+  //   offset: (p - 1) * perPage,
+  //   where: {},
+  //   order: []
+  // };
+
+  // if (search) {
+  //   const lowerCaseSearch = search.toLowerCase();
+  //   options.where = {
+  //     [Op.or]: [
+  //       { firstname: { [Op.iLike]: `%${lowerCaseSearch}%` } },
+  //       { lastname: { [Op.iLike]: `%${lowerCaseSearch}%` } },
+  //       { email: { [Op.iLike]: `%${lowerCaseSearch}%` } }
+  //     ]
+  //   };
+  // }
+
+  // if (sortBy) {
+  //   let ordersForSorting = sortBy.split(',').map(option => {
+  //     const [key, value] = option.split(':');
+  //     return [key.trim(), value.trim().toUpperCase()];
+  //   });
+  //   options.order = ordersForSorting;
+  // }
+
+  // if (creator === '0') {
+  //   options.include = [{
+  //     model: Post,
+  //     as: 'Posts',
+  //     required: true
+  //   }];
+  // }  else {
+  //   options.include = [{
+  //     model: Post,
+  //     as: 'Posts',
+  //     required: false 
+  //   }];
+  // }
+
+  // const { count, rows } = await User.findAndCountAll(options);
+
   try {
-    let { sortBy = '', search = '', p = 1, perPage = 5, creator = '1' } = req.query;
-    
-    p = parseInt(p, 10);
-    perPage = parseInt(perPage, 10);
 
-    const options = {
-      limit: perPage,
-      offset: (p - 1) * perPage,
-      where: {},
-      order: []
-    };
+    const cacheKey = 'allUsers';
 
-    if (search) {
-      const lowerCaseSearch = search.toLowerCase();
-      options.where = {
-        [Op.or]: [
-          { firstname: { [Op.iLike]: `%${lowerCaseSearch}%` } },
-          { lastname: { [Op.iLike]: `%${lowerCaseSearch}%` } },
-          { email: { [Op.iLike]: `%${lowerCaseSearch}%` } }
-        ]
-      };
-    }
+    const cachedData = await client.get(cacheKey);
 
-    if (sortBy) {
-      let ordersForSorting = sortBy.split(',').map(option => {
-        const [key, value] = option.split(':');
-        return [key.trim(), value.trim().toUpperCase()];
+    if (cachedData) {
+
+      console.log('Fetching all users from cache');
+
+      return res.status(200).json({
+        success: true,
+        message: 'Users fetched successfully (from cache)',
+        totalCount: JSON.parse(cachedData).length,
+        data: JSON.parse(cachedData)
       });
-      options.order = ordersForSorting;
     }
 
-    if (creator === '0') {
-      options.include = [{
-        model: Post,
-        as: 'Posts',
-        required: true
-      }];
-    }  else {
-      options.include = [{
-        model: Post,
-        as: 'Posts',
-        required: false 
-      }];
-    }
+    const users = await User.findAll();
 
-    const { count, rows } = await User.findAndCountAll(options);
+    await client.setex(cacheKey, 3600, JSON.stringify(users));
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: 'Users fetched successfully',
-      totalCount: count,
-      data: rows
+      message: 'Users fetched successfully.',
+      totalCount: users.length,
+      data: users
     });
   } catch (err) {
+
     console.error('Error fetching users:', err.message);
-    res.status(404).json({
-      success: false,
-      error: err.message
-    });
+    return res.status(404).json({ success: false, error: err.message });
   }
-};
-
- 
-
-
-
-
-
+}
 // Get a single user by ID
 exports.getUserById = async (req, res) => {
   try {
-    const user = await User.findByPk(req.params.id,{
-      include:[{
-        model:Post,
-        as:'Posts',
-        attributes:{
-          exclude:['UserId']
-        }
-      }]
-    });
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
+    const id = +req.params.id
+    const cacheKey = `user:${req.params.id}`;
+    const cachedData = await client.get(cacheKey);
+    if (cachedData) {
+      console.log('Fetching user by ID from cache');
+      return res.status(200).json({
+        success: true,
+        message: 'User fetched successfully (from cache)',
+        data: JSON.parse(cachedData)
       });
     }
+    const user = await User.findByPk(id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    await client.setex(cacheKey, 3600, JSON.stringify(user)); 
 
     res.status(200).json({
       success: true,
       message: 'User fetched successfully',
-      data: user,  
+      data: user
     });
-    
   } catch (err) {
-    res.status(404).json({
-      success: false,
-      error: err.message
-    });
+    res.status(404).json({ success: false, error: err.message });
   }
 };
 
 // Create a new user
 exports.createUser = async (req, res) => {
   const { isValid, errors } = validateUser(req.body);
-  console.log(errors,isValid);
-  
   if (!isValid) {
-    return res.status(400).json({
-      success: false,
-      error: 'Validation error',
-      details: errors,  
-    });
+    return res.status(400).json({ success: false, error: 'Validation error', details: errors });
   }
 
   try {
-
     const user = await User.create(req.body);
+
+    await client.del('allUsers');
+
     res.status(201).json({
       success: true,
       message: 'User created successfully',
       data: user
     });
   } catch (err) {
-    res.status(400).json({
-      success: false,
-      error: "Email should be unique"
-    });
+    res.status(400).json({ success: false, error: "Email should be unique" });
   }
 };
 
@@ -278,6 +285,8 @@ exports.updateUser = async (req, res) => {
 
     await user.update(req.body);
 
+    await client.del(`user:${req.params.id}`);
+
     res.status(200).json({
       success: true,
       message: 'User updated successfully',
@@ -299,6 +308,7 @@ exports.deleteUser = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     await user.destroy();
+    await client.del(`user:${req.params.id}`);
     res.status(200).json({
       success: true,
       message: 'User deleted successfully',

@@ -21,7 +21,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/posts',authMiddleware,postRoutes)
 
 //? CRUD routes
-app.use('/api/users', authMiddleware,userRoutes);
+app.use('/api/users',authMiddleware,userRoutes);
 
 //? M:N routes
 app.use('/api/products',productRoutes)
